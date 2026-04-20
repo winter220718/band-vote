@@ -30,6 +30,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const syncSongSelectionState = () => {
+        songList.querySelectorAll('.song-item').forEach((item) => {
+            const checkbox = item.querySelector('input[name="song"]');
+            item.classList.toggle('selected', Boolean(checkbox?.checked));
+        });
+    };
+
     const renderSongs = (songs) => {
         if (!songs.length) {
             songList.innerHTML = '<p class="muted">등록된 곡이 없습니다.</p>';
@@ -40,11 +47,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const embedUrl = getYoutubeEmbedUrl(song.youtubeUrl);
 
             return `
-                <label class="song-item song-label song-card">
-                    <input type="checkbox" name="song" value="${song.id}">
+                <div class="song-item song-label song-card">
+                    <input class="song-checkbox" type="checkbox" name="song" value="${song.id}">
                     <span class="song-content">
                         <span class="song-title">${escapeHtml(song.title)}</span>
-                        <a class="song-link" href="${escapeHtml(song.youtubeUrl)}" target="_blank" rel="noopener noreferrer">유튜브 바로가기</a>
                         ${embedUrl ? `
                             <span class="song-embed-wrap">
                                 <iframe
@@ -58,9 +64,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             </span>
                         ` : ''}
                     </span>
-                </label>
+                </div>
             `;
         }).join('');
+
+        syncSongSelectionState();
     };
 
     const loadSongs = async () => {
@@ -68,6 +76,34 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = await response.json();
         renderSongs(data.songs || []);
     };
+
+    songList.addEventListener('click', (event) => {
+        const songItem = event.target.closest('.song-item');
+        if (!songItem) {
+            return;
+        }
+
+        if (event.target.closest('iframe')) {
+            return;
+        }
+
+        const checkbox = songItem.querySelector('input[name="song"]');
+        if (!checkbox) {
+            return;
+        }
+
+        if (event.target !== checkbox) {
+            checkbox.checked = !checkbox.checked;
+        }
+
+        syncSongSelectionState();
+    });
+
+    songList.addEventListener('change', (event) => {
+        if (event.target.matches('input[name="song"]')) {
+            syncSongSelectionState();
+        }
+    });
 
     voteForm.addEventListener('submit', async (event) => {
         event.preventDefault();

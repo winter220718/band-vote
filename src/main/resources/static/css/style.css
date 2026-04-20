@@ -136,6 +136,7 @@ input[type="file"] {
 
 .song-grid {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
 }
 
@@ -144,12 +145,21 @@ input[type="file"] {
     border-radius: 14px;
     padding: 14px;
     background: #fafafa;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.song-item.selected {
+    border-color: var(--primary);
+    background: #eef2ff;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12);
 }
 
 .song-label {
     display: flex;
     gap: 12px;
     align-items: flex-start;
+    width: 100%;
 }
 
 .song-card {
@@ -159,6 +169,8 @@ input[type="file"] {
 .song-label input {
     margin-top: 4px;
     transform: scale(1.2);
+    flex-shrink: 0;
+    cursor: pointer;
 }
 
 .song-content {
@@ -353,6 +365,10 @@ input[type="file"] {
     }
 
     .split-card {
+        grid-template-columns: 1fr;
+    }
+
+    .song-grid {
         grid-template-columns: 1fr;
     }
 

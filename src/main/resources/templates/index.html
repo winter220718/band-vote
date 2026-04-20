@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>합주곡 투표 시작</title>
+    <title>Flowee 합주곡 투표</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <main class="container narrow">
     <section class="card hero-card">
         <p class="badge" th:text="|투표 참여자 수 ${participantCount != null ? participantCount : 0}명|">투표 참여자 수 0명</p>
-        <h1>Flowee 합주곡 투표</h1>
-        <p class="hero-text">선곡(공연곡) 투표 해주세요~~~asap.</p>
-
+        <h1>Flowee 합주(공연)곡 투표</h1>
+        <p class="hero-text">공연일: 9월 12일</p>
         <form id="startForm" class="stack-form">
-            <label for="name">이름</label>
-            <input id="name" name="name" type="text" placeholder="이름" maxlength="20" required>
+            <label for="name">이름을 입력하세요</label>
+            <input id="name" name="name" type="text" maxlength="20" required>
             <button type="submit" class="primary-btn">투표 시작하기</button>
         </form>
     </section>
