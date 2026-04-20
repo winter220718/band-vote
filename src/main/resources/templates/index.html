@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>합주곡 투표 시작</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main class="container narrow">
+    <section class="card hero-card">
+        <!-- <p class="badge">Band Vote</p> -->
+        <h1>Flowee 합주곡 투표</h1>
+        <p class="hero-text">선곡(공연곡) 투표 해주세요~~~asap.</p>
+
+        <form id="startForm" class="stack-form">
+            <label for="name">이름</label>
+            <input id="name" name="name" type="text" placeholder="이름" maxlength="20" required>
+            <button type="submit" class="primary-btn">투표 시작하기</button>
+        </form>
+    </section>
+</main>
+
+<script>
+    document.getElementById('startForm').addEventListener('submit', function (event) {
+        event.preventDefault();
+        const name = document.getElementById('name').value.trim();
+        if (!name) {
+            alert('이름을 입력해 주세요.');
+            return;
+        }
+        window.location.href = '/vote?name=' + encodeURIComponent(name);
+    });
+
+    document.addEventListener('keydown', function (event) {
+        const isAdminShortcut = event.ctrlKey
+            && event.altKey
+            && (event.key === '+' || event.key === '=' || event.code === 'Equal' || event.code === 'NumpadAdd');
+
+        if (isAdminShortcut) {
+            event.preventDefault();
+            window.location.href = '/admin';
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: flowee-band-vote
+    runtime: java
+    plan: free
+    buildCommand: mvn clean package -DskipTests
+    startCommand: java -jar target/band-vote-app-0.0.1-SNAPSHOT.jar
+    envVars:
+      - key: JAVA_VERSION
+        value: 17
+      - key: BANDVOTE_DB_PATH
+        value: /opt/render/project/src/data/bandvote.db

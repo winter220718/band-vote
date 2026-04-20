@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>합주곡 투표 관리자</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main class="container">
+    <section class="card">
+        <div class="page-head">
+            <div>
+                <p class="badge">Admin</p>
+                <h1>관리자 화면</h1>
+                <p class="sub-text">곡 추가와 제출 데이터 확인이 가능합니다.</p>
+            </div>
+            <a href="/" class="secondary-btn">투표 화면</a>
+        </div>
+    </section>
+
+    <section class="card split-card">
+        <div>
+            <h2 id="songFormTitle">곡 추가</h2>
+            <form id="songForm" class="stack-form">
+                <label for="title">곡명</label>
+                <input id="title" name="title" type="text" placeholder="예: 나는 나비" required>
+
+                <label for="youtubeUrl">유튜브 링크</label>
+                <input id="youtubeUrl" name="youtubeUrl" type="url" placeholder="https://youtube.com/..." required>
+
+                <div class="button-row">
+                    <button id="submitSongButton" type="submit" class="primary-btn">곡 추가</button>
+                    <button id="cancelEditButton" type="button" class="secondary-btn hidden">수정 취소</button>
+                </div>
+            </form>
+            <div id="adminMessageBox" class="message-box hidden"></div>
+        </div>
+
+        <div>
+            <h2>현재 곡 목록</h2>
+            <ul id="songAdminList" class="simple-list"></ul>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>투표 현황</h2>
+        <div id="summaryCards" class="summary-grid"></div>
+    </section>
+
+    <section class="card">
+        <h2>제출 데이터</h2>
+        <div id="voteDataList" class="vote-list"></div>
+    </section>
+</main>
+<script src="/js/admin.js"></script>
+</body>
+</html>
