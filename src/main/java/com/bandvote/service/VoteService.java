@@ -40,6 +40,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class VoteService {
 
+    private static final ZoneId APP_ZONE = ZoneId.of("Asia/Seoul");
+
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
     private final Path storageDir = Paths.get("data");
@@ -150,6 +152,18 @@ public class VoteService {
         int deleted = jdbcTemplate.update("DELETE FROM songs WHERE id = ?", id);
         if (deleted == 0) {
             throw new IllegalArgumentException("존재하지 않는 곡입니다.");
+        }
+    }
+
+    public synchronized void deleteVote(Long id) {
+        if (id == null) {
+            throw new IllegalArgumentException("존재하지 않는 제출 데이터입니다.");
+        }
+
+        jdbcTemplate.update("DELETE FROM vote_songs WHERE vote_id = ?", id);
+        int deleted = jdbcTemplate.update("DELETE FROM votes WHERE id = ?", id);
+        if (deleted == 0) {
+            throw new IllegalArgumentException("존재하지 않는 제출 데이터입니다.");
         }
     }
 
@@ -395,12 +409,12 @@ public class VoteService {
         }
 
         if (value instanceof Timestamp) {
-            return ((Timestamp) value).toLocalDateTime();
+            return convertServerLocalToAppZone(((Timestamp) value).toLocalDateTime());
         }
 
         if (value instanceof java.util.Date) {
             return Instant.ofEpochMilli(((java.util.Date) value).getTime())
-                    .atZone(ZoneId.systemDefault())
+                    .atZone(APP_ZONE)
                     .toLocalDateTime();
         }
 
@@ -411,19 +425,25 @@ public class VoteService {
 
         if (raw.matches("^-?\\d+$")) {
             return Instant.ofEpochMilli(Long.parseLong(raw))
-                    .atZone(ZoneId.systemDefault())
+                    .atZone(APP_ZONE)
                     .toLocalDateTime();
         }
 
         try {
-            return Timestamp.valueOf(raw).toLocalDateTime();
+            return convertServerLocalToAppZone(Timestamp.valueOf(raw).toLocalDateTime());
         } catch (IllegalArgumentException ex) {
             try {
-                return LocalDateTime.parse(raw);
+                return convertServerLocalToAppZone(LocalDateTime.parse(raw));
             } catch (DateTimeParseException ignored) {
                 throw new IllegalStateException("투표 시간 형식을 읽는 중 오류가 발생했습니다: " + raw, ex);
             }
         }
+    }
+
+    private LocalDateTime convertServerLocalToAppZone(LocalDateTime value) {
+        return value.atZone(ZoneId.systemDefault())
+                .withZoneSameInstant(APP_ZONE)
+                .toLocalDateTime();
     }
 
     private boolean isHeaderRow(String title, String youtubeUrl) {

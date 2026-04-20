@@ -75,6 +75,20 @@ class BandVoteApplicationTests {
         assertTrue(details.stream().anyMatch(item -> item.get("id").equals(voteId)));
     }
 
+    @Test
+    void deleteVoteRemovesSubmittedData() {
+        Song song = voteService.addSong("삭제 테스트 곡 " + UUID.randomUUID(), "https://youtube.com/watch?v=delete123");
+        long voteId = System.currentTimeMillis();
+
+        jdbcTemplate.update("INSERT INTO votes (id, voter_name, submitted_at) VALUES (?, ?, ?)", voteId, "삭제테스터", "2026-04-20 04:13:00.000");
+        jdbcTemplate.update("INSERT INTO vote_songs (vote_id, song_id) VALUES (?, ?)", voteId, song.getId());
+
+        voteService.deleteVote(voteId);
+
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM votes WHERE id = ?", Integer.class, voteId);
+        assertEquals(0, count);
+    }
+
     private byte[] createExcelFile(String title, String youtubeUrl) throws IOException {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             XSSFSheet sheet = workbook.createSheet("songs");

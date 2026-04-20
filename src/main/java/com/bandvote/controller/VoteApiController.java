@@ -112,4 +112,14 @@ public class VoteApiController {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
     }
+
+    @DeleteMapping("/admin/votes/{id}")
+    public ResponseEntity<?> deleteVote(@PathVariable Long id) {
+        try {
+            voteService.deleteVote(id);
+            return ResponseEntity.ok(Map.of("message", "제출 데이터가 삭제되었습니다."));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
 }

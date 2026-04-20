@@ -245,6 +245,14 @@ input[type="file"] {
     gap: 12px;
 }
 
+.vote-item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
 .song-admin-meta {
     display: grid;
     gap: 6px;
@@ -324,7 +332,8 @@ input[type="file"] {
 
     .song-admin-row,
     .button-row,
-    .inline-actions {
+    .inline-actions,
+    .vote-item-head {
         flex-direction: column;
     }
 

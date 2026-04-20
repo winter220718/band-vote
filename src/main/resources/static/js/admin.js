@@ -30,8 +30,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!value) {
             return '-';
         }
-        const date = new Date(value);
-        return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR');
+
+        const normalized = String(value).replace(' ', 'T');
+        const hasZone = /[zZ]|[+-]\d{2}:\d{2}$/.test(normalized);
+        const date = new Date(hasZone ? normalized : `${normalized}+09:00`);
+
+        return Number.isNaN(date.getTime())
+            ? value
+            : `${date.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false })} KST`;
     };
 
     const resetForm = () => {
@@ -74,7 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
         voteDataList.innerHTML = votes.length
             ? votes.map((vote) => `
                 <article class="vote-item">
-                    <h3>${escapeHtml(vote.voterName)}</h3>
+                    <div class="vote-item-head">
+                        <h3>${escapeHtml(vote.voterName)}</h3>
+                        <button type="button" class="secondary-btn danger-btn delete-vote-btn" data-id="${vote.id}">제출 삭제</button>
+                    </div>
                     <p class="muted">제출 시간: ${formatDate(vote.submittedAt)}</p>
                     <p>${(vote.songs || []).map((song) => escapeHtml(song.title)).join(', ') || '선택 없음'}</p>
                 </article>
@@ -174,6 +183,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 await loadDashboard();
             }
+        }
+    });
+
+    voteDataList.addEventListener('click', async (event) => {
+        const deleteVoteButton = event.target.closest('.delete-vote-btn');
+        if (!deleteVoteButton) {
+            return;
+        }
+
+        const voteId = Number(deleteVoteButton.dataset.id);
+        const response = await fetch(`/api/admin/votes/${voteId}`, {
+            method: 'DELETE'
+        });
+        const data = await response.json();
+        showMessage(data.message || '처리 중 오류가 발생했습니다.', !response.ok);
+
+        if (response.ok) {
+            await loadDashboard();
         }
     });
 
