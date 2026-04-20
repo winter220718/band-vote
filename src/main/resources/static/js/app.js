@@ -10,21 +10,57 @@ document.addEventListener('DOMContentLoaded', () => {
         messageBox.classList.add(isError ? 'error' : 'success');
     };
 
+    const escapeHtml = (value = '') => value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const getYoutubeEmbedUrl = (url = '') => {
+        try {
+            const parsedUrl = new URL(url);
+            const videoId = parsedUrl.hostname.includes('youtu.be')
+                ? parsedUrl.pathname.slice(1)
+                : parsedUrl.searchParams.get('v');
+
+            return videoId ? `https://www.youtube.com/embed/${videoId}` : '';
+        } catch (error) {
+            return '';
+        }
+    };
+
     const renderSongs = (songs) => {
         if (!songs.length) {
             songList.innerHTML = '<p class="muted">등록된 곡이 없습니다.</p>';
             return;
         }
 
-        songList.innerHTML = songs.map((song) => `
-            <label class="song-item song-label">
-                <input type="checkbox" name="song" value="${song.id}">
-                <span>
-                    <span class="song-title">${song.title}</span>
-                    <a class="song-link" href="${song.youtubeUrl}" target="_blank" rel="noopener noreferrer">유튜브 바로가기</a>
-                </span>
-            </label>
-        `).join('');
+        songList.innerHTML = songs.map((song) => {
+            const embedUrl = getYoutubeEmbedUrl(song.youtubeUrl);
+
+            return `
+                <label class="song-item song-label song-card">
+                    <input type="checkbox" name="song" value="${song.id}">
+                    <span class="song-content">
+                        <span class="song-title">${escapeHtml(song.title)}</span>
+                        <a class="song-link" href="${escapeHtml(song.youtubeUrl)}" target="_blank" rel="noopener noreferrer">유튜브 바로가기</a>
+                        ${embedUrl ? `
+                            <span class="song-embed-wrap">
+                                <iframe
+                                    class="song-embed"
+                                    src="${embedUrl}"
+                                    title="${escapeHtml(song.title)} 미리보기"
+                                    loading="lazy"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowfullscreen>
+                                </iframe>
+                            </span>
+                        ` : ''}
+                    </span>
+                </label>
+            `;
+        }).join('');
     };
 
     const loadSongs = async () => {
