@@ -7,6 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const youtubeUrlInput = document.getElementById('youtubeUrl');
     const excelUploadForm = document.getElementById('excelUploadForm');
     const excelFileInput = document.getElementById('excelFile');
+    const excelUploadButton = document.getElementById('excelUploadButton');
+    const uploadProgressBox = document.getElementById('uploadProgressBox');
+    const uploadProgressText = document.getElementById('uploadProgressText');
     const songAdminList = document.getElementById('songAdminList');
     const summaryCards = document.getElementById('summaryCards');
     const voteDataList = document.getElementById('voteDataList');
@@ -46,6 +49,15 @@ document.addEventListener('DOMContentLoaded', () => {
         songFormTitle.textContent = '곡 추가';
         submitSongButton.textContent = '곡 추가';
         cancelEditButton.classList.add('hidden');
+    };
+
+    const setUploadLoading = (isLoading) => {
+        excelUploadButton.disabled = isLoading;
+        excelFileInput.disabled = isLoading;
+        uploadProgressBox.classList.toggle('hidden', !isLoading);
+        uploadProgressText.textContent = isLoading
+            ? '업로드 중입니다. 작업이 끝날 때까지 잠시만 기다려 주세요...'
+            : '업로드가 완료되었습니다.';
     };
 
     const renderDashboard = (data) => {
@@ -136,20 +148,28 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const formData = new FormData();
-        formData.append('file', excelFileInput.files[0]);
+        setUploadLoading(true);
 
-        const response = await fetch('/api/admin/songs/upload', {
-            method: 'POST',
-            body: formData
-        });
+        try {
+            const formData = new FormData();
+            formData.append('file', excelFileInput.files[0]);
 
-        const data = await response.json();
-        showMessage(data.message || '처리 중 오류가 발생했습니다.', !response.ok);
+            const response = await fetch('/api/admin/songs/upload', {
+                method: 'POST',
+                body: formData
+            });
 
-        if (response.ok) {
-            excelUploadForm.reset();
-            await loadDashboard();
+            const data = await response.json();
+            showMessage(data.message || '처리 중 오류가 발생했습니다.', !response.ok);
+
+            if (response.ok) {
+                excelUploadForm.reset();
+                await loadDashboard();
+            }
+        } catch (error) {
+            showMessage('엑셀 업로드 중 오류가 발생했습니다.', true);
+        } finally {
+            setUploadLoading(false);
         }
     });
 
@@ -205,5 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     resetForm();
+    setUploadLoading(false);
     loadDashboard().catch(() => showMessage('관리자 데이터를 불러오지 못했습니다.', true));
 });

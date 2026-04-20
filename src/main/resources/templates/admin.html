@@ -41,7 +41,13 @@
                     <label for="excelFile">엑셀 파일</label>
                     <input id="excelFile" name="file" type="file" accept=".xlsx,.xls" required>
                     <p class="muted upload-help">첫 번째 시트의 앞 두 컬럼만 사용합니다. 순서는 곡명, URL이면 됩니다.</p>
-                    <button type="submit" class="secondary-btn">엑셀 업로드</button>
+                    <button id="excelUploadButton" type="submit" class="secondary-btn">엑셀 업로드</button>
+                    <div id="uploadProgressBox" class="upload-progress hidden" aria-live="polite">
+                        <div class="upload-progress-bar">
+                            <div class="upload-progress-fill"></div>
+                        </div>
+                        <p id="uploadProgressText" class="muted">업로드 중입니다. 잠시만 기다려 주세요...</p>
+                    </div>
                 </form>
             </div>
 

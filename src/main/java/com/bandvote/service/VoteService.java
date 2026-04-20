@@ -170,6 +170,11 @@ public class VoteService {
         }
     }
 
+    public synchronized int getParticipantCount() {
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM votes", Integer.class);
+        return count == null ? 0 : count;
+    }
+
     public synchronized byte[] exportVoteResultsToExcel() {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Sheet summarySheet = workbook.createSheet("투표 현황");

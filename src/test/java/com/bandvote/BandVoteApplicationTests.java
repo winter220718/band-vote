@@ -106,6 +106,16 @@ class BandVoteApplicationTests {
         }
     }
 
+    @Test
+    void participantCountReflectsVotes() {
+        int before = voteService.getParticipantCount();
+        long voteId = System.currentTimeMillis();
+
+        jdbcTemplate.update("INSERT INTO votes (id, voter_name, submitted_at) VALUES (?, ?, ?)", voteId, "참여자수테스터", "2026-04-20 13:40:00.000");
+
+        assertEquals(before + 1, voteService.getParticipantCount());
+    }
+
     private byte[] createExcelFile(String title, String youtubeUrl) throws IOException {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             XSSFSheet sheet = workbook.createSheet("songs");

@@ -9,7 +9,7 @@
 <body>
 <main class="container narrow">
     <section class="card hero-card">
-        <!-- <p class="badge">Band Vote</p> -->
+        <p class="badge" th:text="|투표 참여자 수 ${participantCount != null ? participantCount : 0}명|">투표 참여자 수 0명</p>
         <h1>Flowee 합주곡 투표</h1>
         <p class="hero-text">선곡(공연곡) 투표 해주세요~~~asap.</p>
 
