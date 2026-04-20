@@ -244,9 +244,6 @@ public class VoteService {
         Integer songCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM songs", Integer.class);
         if (songCount != null && songCount == 0) {
             List<Song> initialSongs = readLegacySongs();
-            if (initialSongs.isEmpty()) {
-                initialSongs = defaultSongs();
-            }
             for (Song song : initialSongs) {
                 insertSong(song.getTitle(), song.getYoutubeUrl(), song.getId());
             }
@@ -356,17 +353,7 @@ public class VoteService {
     }
 
     private List<Song> defaultSongs() {
-        List<Song> songs = new ArrayList<>();
-        songs.add(new Song(1L, "Touched (터치드) - Call Me", "https://youtu.be/6_BJ2DiLLEk?si=7557RAyQot2hBuIk"));
-        songs.add(new Song(2L, "Touched (터치드) - Highlight", "https://youtu.be/L5Ba-pp3Qw0?si=j6bs_SWcfWapwiy1"));
-        songs.add(new Song(3L, "Michael Jackson - Love Never Felt So Good (Cover by TheGrooveFellas, Wedding Destination Band Italy)", "https://youtu.be/OrQZeDHsh_8?si=z-iwAzSI6fMEtPmh"));
-        songs.add(new Song(4L, "Dragon Pony (드래곤포니) DS [지구소년]", "https://youtu.be/NMKXgYKAYG0?si=f9FcAyt80RlfIMb-"));
-        songs.add(new Song(5L, "SURL - Destiny", "https://youtu.be/kmt-SbgRchk?si=DMSQLQRF9QbVJXbS"));
-        songs.add(new Song(6L, "신정환 ( SEASON IN THE SUN )", "https://www.youtube.com/watch?v=Hi6_K8Q-OmY"));
-        songs.add(new Song(7L, "쏜애플 빨간피터", "https://youtu.be/9Ubt7vZN7oo?si=ufdQliis9Dk520ou"));
-        songs.add(new Song(8L, "타잔", "https://youtu.be/sFpCJLCtmvA?si=4VZoLDADtnCBx8in"));
-        songs.add(new Song(9L, "안개꽃", "https://youtu.be/Dk2pIN68-uE?si=GgOGc_oPhhw_GoYW"));
-        return songs;
+        return new ArrayList<>();
     }
 
     private List<Song> readLegacySongs() {
