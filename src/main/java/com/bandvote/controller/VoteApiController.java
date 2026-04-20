@@ -1,8 +1,11 @@
 package com.bandvote.controller;
 
+import com.bandvote.model.Song;
 import com.bandvote.model.VoteRequest;
 import com.bandvote.service.VoteService;
+import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import javax.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -14,7 +17,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api")
@@ -65,6 +70,22 @@ public class VoteApiController {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/admin/songs/upload")
+    public ResponseEntity<?> uploadSongs(@RequestParam("file") MultipartFile file) {
+        try {
+            List<Song> songs = voteService.importSongsFromExcel(file.getBytes());
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("message", songs.size() + "곡이 엑셀에서 추가되었습니다.");
+            response.put("songs", songs);
+            response.put("count", songs.size());
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        } catch (IOException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", "엑셀 파일을 읽지 못했습니다."));
         }
     }
 

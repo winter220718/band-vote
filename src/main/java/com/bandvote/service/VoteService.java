@@ -5,6 +5,7 @@ import com.bandvote.model.VoteEntry;
 import com.bandvote.model.VoteRequest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,13 +14,23 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import javax.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -82,6 +93,55 @@ public class VoteService {
         return findSongById(id);
     }
 
+    public synchronized List<Song> importSongsFromExcel(byte[] excelBytes) {
+        if (excelBytes == null || excelBytes.length == 0) {
+            throw new IllegalArgumentException("엑셀 파일을 선택해 주세요.");
+        }
+
+        try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(excelBytes))) {
+            if (workbook.getNumberOfSheets() == 0) {
+                throw new IllegalArgumentException("엑셀 시트가 비어 있습니다.");
+            }
+
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter();
+            List<Song> importedSongs = new ArrayList<>();
+
+            for (Row row : sheet) {
+                String title = formatter.formatCellValue(row.getCell(0)).trim();
+                String youtubeUrl = formatter.formatCellValue(row.getCell(1)).trim();
+
+                if (row.getRowNum() == 0 && isHeaderRow(title, youtubeUrl)) {
+                    continue;
+                }
+
+                if (title.isEmpty() && youtubeUrl.isEmpty()) {
+                    continue;
+                }
+
+                if (title.isEmpty() || youtubeUrl.isEmpty()) {
+                    throw new IllegalArgumentException((row.getRowNum() + 1) + "행에 곡명 또는 URL이 비어 있습니다.");
+                }
+
+                if (songExists(title, youtubeUrl)) {
+                    continue;
+                }
+
+                importedSongs.add(addSong(title, youtubeUrl));
+            }
+
+            if (importedSongs.isEmpty()) {
+                throw new IllegalArgumentException("추가된 곡이 없습니다. 엑셀 형식이나 중복 데이터를 확인해 주세요.");
+            }
+
+            return importedSongs;
+        } catch (IllegalArgumentException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("엑셀 파일을 읽는 중 오류가 발생했습니다.", ex);
+        }
+    }
+
     public synchronized void deleteSong(Long id) {
         if (id == null) {
             throw new IllegalArgumentException("존재하지 않는 곡입니다.");
@@ -121,7 +181,7 @@ public class VoteService {
                     Statement.RETURN_GENERATED_KEYS
             );
             statement.setString(1, voterName);
-            statement.setTimestamp(2, Timestamp.valueOf(submittedAt));
+            setSubmittedAtValue(statement, 2, submittedAt);
             return statement;
         }, keyHolder);
 
@@ -171,10 +231,10 @@ public class VoteService {
                         + "ORDER BY v.submitted_at DESC, v.id DESC, s.id ASC",
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    Timestamp submittedAt = rs.getTimestamp("submitted_at");
+                    LocalDateTime submittedAt = parseSubmittedAt(rs.getObject("submitted_at"));
                     row.put("voteId", rs.getLong("vote_id"));
                     row.put("voterName", rs.getString("voter_name"));
-                    row.put("submittedAt", submittedAt == null ? null : submittedAt.toLocalDateTime().toString());
+                    row.put("submittedAt", submittedAt == null ? null : submittedAt.toString());
                     row.put("songId", rs.getObject("song_id") == null ? null : rs.getLong("song_id"));
                     row.put("songTitle", rs.getString("song_title"));
                     row.put("songYoutubeUrl", rs.getString("song_youtube_url"));
@@ -287,9 +347,11 @@ public class VoteService {
         LocalDateTime submittedAt = vote.getSubmittedAt() == null ? LocalDateTime.now() : vote.getSubmittedAt();
         jdbcTemplate.update(
                 "INSERT INTO votes (id, voter_name, submitted_at) VALUES (?, ?, ?)",
-                vote.getId(),
-                vote.getVoterName(),
-                Timestamp.valueOf(submittedAt)
+                ps -> {
+                    ps.setLong(1, vote.getId());
+                    ps.setString(2, vote.getVoterName());
+                    setSubmittedAtValue(ps, 3, submittedAt);
+                }
         );
 
         if (vote.getSongIds() != null) {
@@ -317,6 +379,69 @@ public class VoteService {
         } catch (Exception ex) {
             throw new IllegalStateException("데이터베이스 연결 확인 중 오류가 발생했습니다.", ex);
         }
+    }
+
+    private void setSubmittedAtValue(PreparedStatement statement, int parameterIndex, LocalDateTime submittedAt) throws java.sql.SQLException {
+        if (isSqlite()) {
+            statement.setString(parameterIndex, submittedAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")));
+            return;
+        }
+        statement.setTimestamp(parameterIndex, Timestamp.valueOf(submittedAt));
+    }
+
+    private LocalDateTime parseSubmittedAt(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Timestamp) {
+            return ((Timestamp) value).toLocalDateTime();
+        }
+
+        if (value instanceof java.util.Date) {
+            return Instant.ofEpochMilli(((java.util.Date) value).getTime())
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+        }
+
+        String raw = value.toString().trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+
+        if (raw.matches("^-?\\d+$")) {
+            return Instant.ofEpochMilli(Long.parseLong(raw))
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDateTime();
+        }
+
+        try {
+            return Timestamp.valueOf(raw).toLocalDateTime();
+        } catch (IllegalArgumentException ex) {
+            try {
+                return LocalDateTime.parse(raw);
+            } catch (DateTimeParseException ignored) {
+                throw new IllegalStateException("투표 시간 형식을 읽는 중 오류가 발생했습니다: " + raw, ex);
+            }
+        }
+    }
+
+    private boolean isHeaderRow(String title, String youtubeUrl) {
+        String normalizedTitle = title.toLowerCase(Locale.ROOT).replace(" ", "");
+        String normalizedUrl = youtubeUrl.toLowerCase(Locale.ROOT).replace(" ", "");
+
+        return (normalizedTitle.contains("곡명") || normalizedTitle.contains("title") || normalizedTitle.contains("song"))
+                && (normalizedUrl.contains("url") || normalizedUrl.contains("link") || normalizedUrl.contains("주소") || normalizedUrl.contains("youtube"));
+    }
+
+    private boolean songExists(String title, String youtubeUrl) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM songs WHERE title = ? AND youtube_url = ?",
+                Integer.class,
+                title.trim(),
+                youtubeUrl.trim()
+        );
+        return count != null && count > 0;
     }
 
     private boolean isSqlite() {

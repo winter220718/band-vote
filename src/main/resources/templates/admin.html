@@ -34,6 +34,17 @@
                     <button id="cancelEditButton" type="button" class="secondary-btn hidden">수정 취소</button>
                 </div>
             </form>
+
+            <div class="upload-box">
+                <h3>엑셀 업로드</h3>
+                <form id="excelUploadForm" class="stack-form">
+                    <label for="excelFile">엑셀 파일</label>
+                    <input id="excelFile" name="file" type="file" accept=".xlsx,.xls" required>
+                    <p class="muted upload-help">첫 번째 시트의 앞 두 컬럼만 사용합니다. 순서는 곡명, URL이면 됩니다.</p>
+                    <button type="submit" class="secondary-btn">엑셀 업로드</button>
+                </form>
+            </div>
+
             <div id="adminMessageBox" class="message-box hidden"></div>
         </div>
 

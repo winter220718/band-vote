@@ -81,12 +81,14 @@ label {
 }
 
 input[type="text"],
-input[type="url"] {
+input[type="url"],
+input[type="file"] {
     width: 100%;
     padding: 12px 14px;
     border: 1px solid var(--line);
     border-radius: 12px;
     font-size: 15px;
+    background: #fff;
 }
 
 .primary-btn,
@@ -267,6 +269,16 @@ input[type="url"] {
 .danger-btn {
     background: #fee2e2;
     color: #991b1b;
+}
+
+.upload-box {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.upload-help {
+    margin: -4px 0 0;
 }
 
 .summary-grid {

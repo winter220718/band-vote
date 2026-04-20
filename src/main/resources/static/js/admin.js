@@ -5,6 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelEditButton = document.getElementById('cancelEditButton');
     const titleInput = document.getElementById('title');
     const youtubeUrlInput = document.getElementById('youtubeUrl');
+    const excelUploadForm = document.getElementById('excelUploadForm');
+    const excelFileInput = document.getElementById('excelFile');
     const songAdminList = document.getElementById('songAdminList');
     const summaryCards = document.getElementById('summaryCards');
     const voteDataList = document.getElementById('voteDataList');
@@ -115,6 +117,31 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelEditButton.addEventListener('click', () => {
         resetForm();
         showMessage('수정 모드가 취소되었습니다.');
+    });
+
+    excelUploadForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!excelFileInput.files.length) {
+            showMessage('업로드할 엑셀 파일을 선택해 주세요.', true);
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', excelFileInput.files[0]);
+
+        const response = await fetch('/api/admin/songs/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+        showMessage(data.message || '처리 중 오류가 발생했습니다.', !response.ok);
+
+        if (response.ok) {
+            excelUploadForm.reset();
+            await loadDashboard();
+        }
     });
 
     songAdminList.addEventListener('click', async (event) => {
