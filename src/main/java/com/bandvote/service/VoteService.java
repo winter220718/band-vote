@@ -9,8 +9,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -32,6 +34,7 @@ public class VoteService {
     private final Path storageDir = Paths.get("data");
     private final Path songsFile = storageDir.resolve("songs.json");
     private final Path votesFile = storageDir.resolve("votes.json");
+    private String databaseProductName = "unknown";
 
     public VoteService(ObjectMapper objectMapper, JdbcTemplate jdbcTemplate) {
         this.objectMapper = objectMapper.copy().findAndRegisterModules();
@@ -41,6 +44,7 @@ public class VoteService {
     @PostConstruct
     public void initialize() throws IOException {
         Files.createDirectories(storageDir);
+        databaseProductName = detectDatabaseProductName();
         createTables();
         migrateLegacyDataIfNeeded();
     }
@@ -117,7 +121,7 @@ public class VoteService {
                     Statement.RETURN_GENERATED_KEYS
             );
             statement.setString(1, voterName);
-            statement.setString(2, submittedAt.toString());
+            statement.setTimestamp(2, Timestamp.valueOf(submittedAt));
             return statement;
         }, keyHolder);
 
@@ -167,9 +171,10 @@ public class VoteService {
                         + "ORDER BY v.submitted_at DESC, v.id DESC, s.id ASC",
                 (rs, rowNum) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
+                    Timestamp submittedAt = rs.getTimestamp("submitted_at");
                     row.put("voteId", rs.getLong("vote_id"));
                     row.put("voterName", rs.getString("voter_name"));
-                    row.put("submittedAt", rs.getString("submitted_at"));
+                    row.put("submittedAt", submittedAt == null ? null : submittedAt.toLocalDateTime().toString());
                     row.put("songId", rs.getObject("song_id") == null ? null : rs.getLong("song_id"));
                     row.put("songTitle", rs.getString("song_title"));
                     row.put("songYoutubeUrl", rs.getString("song_youtube_url"));
@@ -204,19 +209,32 @@ public class VoteService {
     }
 
     private void createTables() {
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS songs ("
-                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                + "title TEXT NOT NULL, "
-                + "youtube_url TEXT NOT NULL)");
+        if (isSqlite()) {
+            jdbcTemplate.execute("PRAGMA foreign_keys = ON");
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS songs ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    + "title TEXT NOT NULL, "
+                    + "youtube_url TEXT NOT NULL)");
 
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS votes ("
-                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                + "voter_name TEXT NOT NULL, "
-                + "submitted_at TEXT NOT NULL)");
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS votes ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    + "voter_name TEXT NOT NULL, "
+                    + "submitted_at TEXT NOT NULL)");
+        } else {
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS songs ("
+                    + "id BIGSERIAL PRIMARY KEY, "
+                    + "title VARCHAR(255) NOT NULL, "
+                    + "youtube_url TEXT NOT NULL)");
+
+            jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS votes ("
+                    + "id BIGSERIAL PRIMARY KEY, "
+                    + "voter_name VARCHAR(255) NOT NULL, "
+                    + "submitted_at TIMESTAMP NOT NULL)");
+        }
 
         jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS vote_songs ("
-                + "vote_id INTEGER NOT NULL, "
-                + "song_id INTEGER NOT NULL, "
+                + "vote_id BIGINT NOT NULL, "
+                + "song_id BIGINT NOT NULL, "
                 + "PRIMARY KEY (vote_id, song_id), "
                 + "FOREIGN KEY (vote_id) REFERENCES votes(id) ON DELETE CASCADE, "
                 + "FOREIGN KEY (song_id) REFERENCES songs(id) ON DELETE CASCADE)");
@@ -240,6 +258,8 @@ public class VoteService {
                 insertLegacyVote(vote);
             }
         }
+
+        syncSequencesIfNeeded();
     }
 
     private Song insertSong(String title, String youtubeUrl, Long fixedId) {
@@ -272,7 +292,7 @@ public class VoteService {
                 "INSERT INTO votes (id, voter_name, submitted_at) VALUES (?, ?, ?)",
                 vote.getId(),
                 vote.getVoterName(),
-                submittedAt.toString()
+                Timestamp.valueOf(submittedAt)
         );
 
         if (vote.getSongIds() != null) {
@@ -294,6 +314,31 @@ public class VoteService {
         return songs.get(0);
     }
 
+    private String detectDatabaseProductName() {
+        try (Connection connection = jdbcTemplate.getDataSource().getConnection()) {
+            return connection.getMetaData().getDatabaseProductName();
+        } catch (Exception ex) {
+            throw new IllegalStateException("데이터베이스 연결 확인 중 오류가 발생했습니다.", ex);
+        }
+    }
+
+    private boolean isSqlite() {
+        return databaseProductName != null && databaseProductName.toLowerCase().contains("sqlite");
+    }
+
+    private boolean isPostgres() {
+        return databaseProductName != null && databaseProductName.toLowerCase().contains("postgresql");
+    }
+
+    private void syncSequencesIfNeeded() {
+        if (!isPostgres()) {
+            return;
+        }
+
+        jdbcTemplate.execute("SELECT setval(pg_get_serial_sequence('songs', 'id'), COALESCE((SELECT MAX(id) FROM songs), 0) + 1, false)");
+        jdbcTemplate.execute("SELECT setval(pg_get_serial_sequence('votes', 'id'), COALESCE((SELECT MAX(id) FROM votes), 0) + 1, false)");
+    }
+
     private String validateTitle(String title) {
         String cleanTitle = title == null ? "" : title.trim();
         if (cleanTitle.isEmpty()) {
@@ -312,10 +357,15 @@ public class VoteService {
 
     private List<Song> defaultSongs() {
         List<Song> songs = new ArrayList<>();
-        songs.add(new Song(1L, "한 페이지가 될 수 있게", "https://www.youtube.com/watch?v=B9FzVhw8_bY"));
-        songs.add(new Song(2L, "질풍가도", "https://www.youtube.com/watch?v=7V8G6A9u1X8"));
-        songs.add(new Song(3L, "좋은 밤 좋은 꿈", "https://www.youtube.com/watch?v=ebslN7g4mqA"));
-        songs.add(new Song(4L, "Supernova", "https://www.youtube.com/watch?v=phuiiNCxRMg"));
+        songs.add(new Song(1L, "Touched (터치드) - Call Me", "https://youtu.be/6_BJ2DiLLEk?si=7557RAyQot2hBuIk"));
+        songs.add(new Song(2L, "Touched (터치드) - Highlight", "https://youtu.be/L5Ba-pp3Qw0?si=j6bs_SWcfWapwiy1"));
+        songs.add(new Song(3L, "Michael Jackson - Love Never Felt So Good (Cover by TheGrooveFellas, Wedding Destination Band Italy)", "https://youtu.be/OrQZeDHsh_8?si=z-iwAzSI6fMEtPmh"));
+        songs.add(new Song(4L, "Dragon Pony (드래곤포니) DS [지구소년]", "https://youtu.be/NMKXgYKAYG0?si=f9FcAyt80RlfIMb-"));
+        songs.add(new Song(5L, "SURL - Destiny", "https://youtu.be/kmt-SbgRchk?si=DMSQLQRF9QbVJXbS"));
+        songs.add(new Song(6L, "신정환 ( SEASON IN THE SUN )", "https://www.youtube.com/watch?v=Hi6_K8Q-OmY"));
+        songs.add(new Song(7L, "쏜애플 빨간피터", "https://youtu.be/9Ubt7vZN7oo?si=ufdQliis9Dk520ou"));
+        songs.add(new Song(8L, "타잔", "https://youtu.be/sFpCJLCtmvA?si=4VZoLDADtnCBx8in"));
+        songs.add(new Song(9L, "안개꽃", "https://youtu.be/Dk2pIN68-uE?si=GgOGc_oPhhw_GoYW"));
         return songs;
     }
 

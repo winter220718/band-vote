@@ -6,5 +6,5 @@ services:
     dockerfilePath: ./Dockerfile
     autoDeployTrigger: commit
     envVars:
-      - key: BANDVOTE_DB_PATH
-        value: /opt/render/project/src/data/bandvote.db
+      - key: DATABASE_URL
+        sync: false

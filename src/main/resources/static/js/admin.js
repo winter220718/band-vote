@@ -134,10 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (deleteButton) {
             const songId = Number(deleteButton.dataset.id);
-            const confirmed = window.confirm('이 곡을 삭제할까요? 기존 투표 집계에서도 제외됩니다.');
-            if (!confirmed) {
-                return;
-            }
 
             const response = await fetch(`/api/admin/songs/${songId}`, {
                 method: 'DELETE'
