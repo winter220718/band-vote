@@ -89,6 +89,23 @@ class BandVoteApplicationTests {
         assertEquals(0, count);
     }
 
+    @Test
+    void exportVoteResultsCreatesExcelWorkbook() throws IOException {
+        Song song = voteService.addSong("다운로드 테스트 곡 " + UUID.randomUUID(), "https://youtube.com/watch?v=download123");
+        long voteId = System.currentTimeMillis();
+
+        jdbcTemplate.update("INSERT INTO votes (id, voter_name, submitted_at) VALUES (?, ?, ?)", voteId, "엑셀테스터", "2026-04-20 13:30:00.000");
+        jdbcTemplate.update("INSERT INTO vote_songs (vote_id, song_id) VALUES (?, ?)", voteId, song.getId());
+
+        byte[] excelBytes = voteService.exportVoteResultsToExcel();
+
+        assertTrue(excelBytes.length > 0);
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new java.io.ByteArrayInputStream(excelBytes))) {
+            assertEquals("투표 현황", workbook.getSheetAt(0).getSheetName());
+            assertEquals("제출 데이터", workbook.getSheetAt(1).getSheetName());
+        }
+    }
+
     private byte[] createExcelFile(String title, String youtubeUrl) throws IOException {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             XSSFSheet sheet = workbook.createSheet("songs");

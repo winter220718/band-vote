@@ -6,6 +6,7 @@ import com.bandvote.model.VoteRequest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,7 +32,9 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import javax.annotation.PostConstruct;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -167,6 +170,51 @@ public class VoteService {
         }
     }
 
+    public synchronized byte[] exportVoteResultsToExcel() {
+        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            Sheet summarySheet = workbook.createSheet("투표 현황");
+            Row summaryHeader = summarySheet.createRow(0);
+            summaryHeader.createCell(0).setCellValue("곡명");
+            summaryHeader.createCell(1).setCellValue("유튜브 URL");
+            summaryHeader.createCell(2).setCellValue("득표수");
+
+            int summaryRowIndex = 1;
+            for (Map<String, Object> item : getVoteSummary()) {
+                Row row = summarySheet.createRow(summaryRowIndex++);
+                row.createCell(0).setCellValue(String.valueOf(item.getOrDefault("title", "")));
+                row.createCell(1).setCellValue(String.valueOf(item.getOrDefault("youtubeUrl", "")));
+                Object voteCount = item.get("votes");
+                row.createCell(2).setCellValue(voteCount instanceof Number ? ((Number) voteCount).doubleValue() : 0);
+            }
+
+            Sheet voteSheet = workbook.createSheet("제출 데이터");
+            Row voteHeader = voteSheet.createRow(0);
+            voteHeader.createCell(0).setCellValue("이름");
+            voteHeader.createCell(1).setCellValue("제출 시간");
+            voteHeader.createCell(2).setCellValue("선택 곡");
+
+            int voteRowIndex = 1;
+            for (Map<String, Object> vote : getVoteDetails()) {
+                @SuppressWarnings("unchecked")
+                List<Song> songs = (List<Song>) vote.getOrDefault("songs", new ArrayList<Song>());
+                Row row = voteSheet.createRow(voteRowIndex++);
+                row.createCell(0).setCellValue(String.valueOf(vote.getOrDefault("voterName", "")));
+                row.createCell(1).setCellValue(String.valueOf(vote.getOrDefault("submittedAt", "")));
+                row.createCell(2).setCellValue(songs.stream().map(Song::getTitle).collect(Collectors.joining(", ")));
+            }
+
+            for (int i = 0; i < 3; i++) {
+                summarySheet.autoSizeColumn(i);
+                voteSheet.autoSizeColumn(i);
+            }
+
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        } catch (IOException ex) {
+            throw new IllegalStateException("투표 결과 엑셀 생성 중 오류가 발생했습니다.", ex);
+        }
+    }
+
     public synchronized VoteEntry submitVote(VoteRequest request) {
         String voterName = request.getVoterName() == null ? "" : request.getVoterName().trim();
         if (voterName.isEmpty()) {
@@ -190,21 +238,13 @@ public class VoteService {
         KeyHolder keyHolder = new GeneratedKeyHolder();
 
         jdbcTemplate.update(connection -> {
-            PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO votes (voter_name, submitted_at) VALUES (?, ?)",
-                    Statement.RETURN_GENERATED_KEYS
-            );
+            PreparedStatement statement = prepareInsertStatement(connection, "INSERT INTO votes (voter_name, submitted_at) VALUES (?, ?)");
             statement.setString(1, voterName);
             setSubmittedAtValue(statement, 2, submittedAt);
             return statement;
         }, keyHolder);
 
-        Number key = keyHolder.getKey();
-        if (key == null) {
-            throw new IllegalStateException("투표 저장 중 오류가 발생했습니다.");
-        }
-
-        long voteId = key.longValue();
+        long voteId = extractGeneratedId(keyHolder, "투표 저장 중 오류가 발생했습니다.");
         for (Long songId : selectedSongIds) {
             jdbcTemplate.update("INSERT INTO vote_songs (vote_id, song_id) VALUES (?, ?)", voteId, songId);
         }
@@ -337,20 +377,14 @@ public class VoteService {
         if (fixedId == null) {
             KeyHolder keyHolder = new GeneratedKeyHolder();
             jdbcTemplate.update(connection -> {
-                PreparedStatement statement = connection.prepareStatement(
-                        "INSERT INTO songs (title, youtube_url) VALUES (?, ?)",
-                        Statement.RETURN_GENERATED_KEYS
-                );
+                PreparedStatement statement = prepareInsertStatement(connection, "INSERT INTO songs (title, youtube_url) VALUES (?, ?)");
                 statement.setString(1, title);
                 statement.setString(2, youtubeUrl);
                 return statement;
             }, keyHolder);
 
-            Number key = keyHolder.getKey();
-            if (key == null) {
-                throw new IllegalStateException("곡 저장 중 오류가 발생했습니다.");
-            }
-            return new Song(key.longValue(), title, youtubeUrl);
+            long songId = extractGeneratedId(keyHolder, "곡 저장 중 오류가 발생했습니다.");
+            return new Song(songId, title, youtubeUrl);
         }
 
         jdbcTemplate.update("INSERT INTO songs (id, title, youtube_url) VALUES (?, ?, ?)", fixedId, title, youtubeUrl);
@@ -393,6 +427,40 @@ public class VoteService {
         } catch (Exception ex) {
             throw new IllegalStateException("데이터베이스 연결 확인 중 오류가 발생했습니다.", ex);
         }
+    }
+
+    private PreparedStatement prepareInsertStatement(Connection connection, String sql) throws java.sql.SQLException {
+        if (isPostgres()) {
+            return connection.prepareStatement(sql, new String[]{"id"});
+        }
+        return connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+    }
+
+    private long extractGeneratedId(KeyHolder keyHolder, String errorMessage) {
+        try {
+            Number key = keyHolder.getKey();
+            if (key != null) {
+                return key.longValue();
+            }
+        } catch (InvalidDataAccessApiUsageException ignored) {
+        }
+
+        Map<String, Object> keys = keyHolder.getKeys();
+        if (keys != null) {
+            Object id = keys.get("id");
+            if (id instanceof Number) {
+                return ((Number) id).longValue();
+            }
+        }
+
+        for (Map<String, Object> keyMap : keyHolder.getKeyList()) {
+            Object id = keyMap.get("id");
+            if (id instanceof Number) {
+                return ((Number) id).longValue();
+            }
+        }
+
+        throw new IllegalStateException(errorMessage);
     }
 
     private void setSubmittedAtValue(PreparedStatement statement, int parameterIndex, LocalDateTime submittedAt) throws java.sql.SQLException {

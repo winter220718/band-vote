@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import javax.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -57,6 +59,15 @@ public class VoteApiController {
         response.put("summary", voteService.getVoteSummary());
         response.put("votes", voteService.getVoteDetails());
         return response;
+    }
+
+    @GetMapping("/admin/export")
+    public ResponseEntity<byte[]> exportVoteResults() {
+        byte[] file = voteService.exportVoteResultsToExcel();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=band-vote-results.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
     }
 
     @PostMapping("/admin/songs")
